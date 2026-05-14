@@ -1,0 +1,122 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cgpt}
+      POSTGRES_USER: ${POSTGRES_USER:-cgpt}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cgpt}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cgpt} -d ${POSTGRES_DB:-cgpt}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+
+  migrate:
+    build:
+      context: ./apps/api
+    user: "${UID:-1000}:${GID:-1000}"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-cgpt}:${POSTGRES_PASSWORD:-cgpt}@db:5432/${POSTGRES_DB:-cgpt}
+      PYTHONPATH: /workspace/apps/api
+    volumes:
+      - ./:/workspace
+    working_dir: /workspace/apps/api
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  api:
+    build:
+      context: ./apps/api
+    user: "${UID:-1000}:${GID:-1000}"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+    environment:
+      APP_ROLE: api
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-cgpt}:${POSTGRES_PASSWORD:-cgpt}@db:5432/${POSTGRES_DB:-cgpt}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CODEX_TIMEOUT_SECONDS: ${CODEX_TIMEOUT_SECONDS:-600}
+      WORKSPACE_ROOT: /workspace/runtime/workspaces/default
+      CODEX_CONFIG_DIR: /codex_home
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /workspace/apps/api
+      RUN_QUEUE_NAME: ${RUN_QUEUE_NAME:-agent_runs:queue}
+      RUN_PROCESSING_QUEUE_NAME: ${RUN_PROCESSING_QUEUE_NAME:-agent_runs:processing}
+      RUN_EVENTS_CHANNEL: ${RUN_EVENTS_CHANNEL:-agent_runs:events}
+      RUN_MAX_RETRIES: ${RUN_MAX_RETRIES:-1}
+      RUN_LEASE_SECONDS: ${RUN_LEASE_SECONDS:-90}
+      RUN_HEARTBEAT_SECONDS: ${RUN_HEARTBEAT_SECONDS:-10}
+      RUN_REAPER_INTERVAL_SECONDS: ${RUN_REAPER_INTERVAL_SECONDS:-15}
+      RUN_QUEUE_BLOCK_SECONDS: ${RUN_QUEUE_BLOCK_SECONDS:-5}
+    volumes:
+      - ./:/workspace
+      - ${HOME}/.codex:/codex_home:rw
+    working_dir: /workspace/apps/api
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    ports:
+      - "${API_PORT:-8000}:8000"
+
+  worker:
+    build:
+      context: ./apps/api
+    user: "${UID:-1000}:${GID:-1000}"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+    environment:
+      APP_ROLE: worker
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-cgpt}:${POSTGRES_PASSWORD:-cgpt}@db:5432/${POSTGRES_DB:-cgpt}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CODEX_TIMEOUT_SECONDS: ${CODEX_TIMEOUT_SECONDS:-600}
+      WORKSPACE_ROOT: /workspace/runtime/workspaces/default
+      CODEX_CONFIG_DIR: /codex_home
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /workspace/apps/api
+      RUN_QUEUE_NAME: ${RUN_QUEUE_NAME:-agent_runs:queue}
+      RUN_PROCESSING_QUEUE_NAME: ${RUN_PROCESSING_QUEUE_NAME:-agent_runs:processing}
+      RUN_EVENTS_CHANNEL: ${RUN_EVENTS_CHANNEL:-agent_runs:events}
+      RUN_MAX_RETRIES: ${RUN_MAX_RETRIES:-1}
+      RUN_LEASE_SECONDS: ${RUN_LEASE_SECONDS:-90}
+      RUN_HEARTBEAT_SECONDS: ${RUN_HEARTBEAT_SECONDS:-10}
+      RUN_REAPER_INTERVAL_SECONDS: ${RUN_REAPER_INTERVAL_SECONDS:-15}
+      RUN_QUEUE_BLOCK_SECONDS: ${RUN_QUEUE_BLOCK_SECONDS:-5}
+    volumes:
+      - ./:/workspace
+      - ${HOME}/.codex:/codex_home:rw
+    working_dir: /workspace/apps/api
+    command: ["python", "-m", "app.worker_main"]
+
+  web:
+    build:
+      context: ./apps/web
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
+      NEXT_PUBLIC_WS_BASE: ${NEXT_PUBLIC_WS_BASE:-ws://localhost:8000}
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+    working_dir: /app
+    command: ["npm", "run", "dev", "--", "-H", "0.0.0.0", "-p", "3000"]
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+
+volumes:
+  pg_data:
