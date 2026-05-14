@@ -13,6 +13,10 @@ class CodexRunError(Exception):
     pass
 
 
+def build_output_file_path(*, workspace_path: str, run_id: int) -> Path:
+    return Path(workspace_path).resolve() / f".codex_last_message_{run_id}.txt"
+
+
 async def run_codex_stream(
     *,
     run_id: int,
@@ -30,7 +34,7 @@ async def run_codex_stream(
     if workspace != allowed:
         raise CodexRunError("Workspace path is invalid for Stage 1 runner.")
 
-    output_file = workspace / f".codex_last_message_{run_id}.txt"
+    output_file = build_output_file_path(workspace_path=str(workspace), run_id=run_id)
     if output_file.exists():
         output_file.unlink()
 

@@ -69,8 +69,8 @@ async def create_user_message(
     )
 
     try:
-        job_id = await enqueue_run(redis, job)
-        await set_enqueued(session, run, job_id=job_id)
+        await set_enqueued(session, run, job_id=job.job_id)
+        await enqueue_run(redis, job)
     except RedisError as exc:
         error = "Queue is temporarily unavailable. Please retry."
         await mark_run_failed(session, run, error=error)

@@ -30,13 +30,21 @@ async def create_agent_run(
     return run
 
 
-async def claim_run_for_processing(session: AsyncSession, *, run_id: int, lease_seconds: int) -> AgentRun | None:
-    result = await session.execute(select(AgentRun).where(AgentRun.id == run_id))
+async def claim_run_for_processing(
+    session: AsyncSession,
+    *,
+    run_id: int,
+    job_id: str,
+    lease_seconds: int,
+) -> AgentRun | None:
+    result = await session.execute(select(AgentRun).where(AgentRun.id == run_id).with_for_update(skip_locked=True))
     run = result.scalar_one_or_none()
     if run is None:
         return None
 
     now = _now()
+    if run.queue_job_id is not None and run.queue_job_id != job_id:
+        return None
     can_claim = run.status == "queued" or (run.status == "running" and run.lease_expires_at and run.lease_expires_at < now)
     if not can_claim:
         return None

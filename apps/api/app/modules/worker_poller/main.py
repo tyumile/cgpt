@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from sqlalchemy import select
 
@@ -32,35 +32,72 @@ class QueuePayload:
         return cls(**data)
 
 
-async def _ack_processing_message(raw_payload: str) -> None:
-    settings = get_settings()
-    redis = get_redis()
-    await redis.lrem(settings.run_processing_queue_name, 1, raw_payload)
+def _payload_to_json(payload: QueuePayload) -> str:
+    return json.dumps(asdict(payload), ensure_ascii=False)
 
 
-async def _requeue_payload(payload: QueuePayload) -> None:
+async def _ack_processing_message(raw_payload: str, *, redis=None) -> None:
     settings = get_settings()
-    redis = get_redis()
-    await redis.lpush(settings.run_queue_name, json.dumps(payload.__dict__, ensure_ascii=False))
+    redis = redis or get_redis()
+    await redis.lrem(settings.run_processing_queue_name, 0, raw_payload)
+
+
+async def _requeue_payload(payload: QueuePayload, *, redis=None) -> None:
+    settings = get_settings()
+    redis = redis or get_redis()
+    await redis.lpush(settings.run_queue_name, _payload_to_json(payload))
+
+
+async def _recover_processing_queue_once(*, redis=None, session_factory=AsyncSessionLocal) -> None:
+    settings = get_settings()
+    redis = redis or get_redis()
+    raw_payloads = await redis.lrange(settings.run_processing_queue_name, 0, -1)
+    handled: set[str] = set()
+
+    for raw_payload in raw_payloads:
+        if raw_payload in handled:
+            continue
+        handled.add(raw_payload)
+        payload = QueuePayload.from_json(raw_payload)
+
+        async with session_factory() as session:
+            result = await session.execute(select(AgentRun).where(AgentRun.id == payload.run_id))
+            run = result.scalar_one_or_none()
+
+        if run is None:
+            await _ack_processing_message(raw_payload, redis=redis)
+            continue
+
+        if run.status == "queued":
+            await _ack_processing_message(raw_payload, redis=redis)
+            await _requeue_payload(payload, redis=redis)
+            continue
+
+        if run.status in {"done", "failed"}:
+            await _ack_processing_message(raw_payload, redis=redis)
 
 
 async def _run_reaper_once() -> None:
     settings = get_settings()
+    await _recover_processing_queue_once()
     async with AsyncSessionLocal() as session:
         stale = await list_stale_running_runs(session)
         if not stale:
             return
         for run in stale:
+            payload = build_job(
+                run_id=run.id,
+                workspace_id=run.workspace_id,
+                chat_id=run.chat_id,
+                trigger_message_id=run.trigger_message_id,
+            )
+            payload.job_id = run.queue_job_id or payload.job_id
+            queue_payload = QueuePayload(**asdict(payload))
+            await _ack_processing_message(_payload_to_json(queue_payload))
+
             if run.attempt <= settings.run_max_retries:
                 await reset_run_to_queued(session, run, error="Lease expired, re-queued")
-                payload = build_job(
-                    run_id=run.id,
-                    workspace_id=run.workspace_id,
-                    chat_id=run.chat_id,
-                    trigger_message_id=run.trigger_message_id,
-                )
-                payload.job_id = run.queue_job_id or payload.job_id
-                await _requeue_payload(QueuePayload(**payload.__dict__))
+                await _requeue_payload(queue_payload)
             else:
                 await mark_run_failed(session, run, error="Lease expired and retry budget exhausted")
                 await mark_deadletter(session, run=run, reason="stale-running")
@@ -93,7 +130,12 @@ async def worker_loop() -> None:
         payload = QueuePayload.from_json(raw_payload)
 
         async with AsyncSessionLocal() as session:
-            run = await claim_run_for_processing(session, run_id=payload.run_id, lease_seconds=settings.run_lease_seconds)
+            run = await claim_run_for_processing(
+                session,
+                run_id=payload.run_id,
+                job_id=payload.job_id,
+                lease_seconds=settings.run_lease_seconds,
+            )
             if run is None:
                 await _ack_processing_message(raw_payload)
                 continue

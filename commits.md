@@ -5,3 +5,4 @@
 - 2026-05-14 | 11:22 UTC | Live E2E docker production fix | Fixed codex exec flags, deployed docker stack, verified websocket stream to assistant_done on public endpoint.
 2026-05-14 | 11:36 UTC | Independent review: Redis queue + worker implementation plan | Reported ISSUES with blocking gaps and hardening additions.
 - 2026-05-14 | 12:04 UTC | Standalone git init for GitHub publish | Ignored runtime state, created local commit, and prepared `tyumile/cgpt` push target.
+- 2026-05-14 | 12:46 UTC | Queue worker resilience follow-up | Added atomic run claim, processing-queue recovery, regression tests, and verified compose recovery path.
