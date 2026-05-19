@@ -25,8 +25,7 @@ async def create_agent_run(
         attempt=0,
     )
     session.add(run)
-    await session.commit()
-    await session.refresh(run)
+    await session.flush()
     return run
 
 

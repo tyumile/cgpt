@@ -2,9 +2,9 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 
 from app.modules.messages import main as messages_main
-from app.shared.schemas import MessageCreateRequest
 
 
 class _FakeResult:
@@ -42,9 +42,13 @@ def _setup_common_mocks(monkeypatch: pytest.MonkeyPatch, *, chat_title: str, use
     async def _fake_resolve(_request, _session):
         return SimpleNamespace(user_id=17)
 
-    async def _fake_get_chat(_session, *, chat_id: int, user_id: int):
+    async def _fake_workspace(_session):
+        return SimpleNamespace(id=29, root_path="/tmp/workspace")
+
+    async def _fake_get_chat(_session, *, chat_id: int, user_id: int, workspace_id: int):
         assert chat_id == 41
         assert user_id == 17
+        assert workspace_id == 29
         return chat
 
     async def _fake_create_message(_session, **_kwargs):
@@ -60,6 +64,7 @@ def _setup_common_mocks(monkeypatch: pytest.MonkeyPatch, *, chat_title: str, use
         return None
 
     monkeypatch.setattr(messages_main, "resolve_cabinet_session_from_request", _fake_resolve)
+    monkeypatch.setattr(messages_main, "get_current_workspace", _fake_workspace)
     monkeypatch.setattr(messages_main, "_get_owned_chat_or_404", _fake_get_chat)
     monkeypatch.setattr(messages_main, "create_message", _fake_create_message)
     monkeypatch.setattr(messages_main, "create_agent_run", _fake_create_agent_run)
@@ -75,8 +80,18 @@ def test_first_user_message_sets_chat_title(monkeypatch: pytest.MonkeyPatch) -> 
     post_endpoint = _get_post_endpoint()
     session = _FakeSession(first_user_message_id=11)
 
-    payload = MessageCreateRequest(content="  user:   Привет,   мир \n\n как дела?  ")
-    response = asyncio.run(post_endpoint(chat_id=41, payload=payload, request=object(), session=session))
+    class _Req:
+        headers = {"content-type": "multipart/form-data; boundary=demo"}
+
+    response = asyncio.run(
+        post_endpoint(
+            chat_id=41,
+            request=_Req(),
+            content="  user:   Привет,   мир \n\n как дела?  ",
+            files=[],
+            session=session,
+        )
+    )
 
     assert response.message_id == 11
     assert response.agent_run_id == 73
@@ -90,23 +105,29 @@ def test_second_user_message_does_not_rename_chat(monkeypatch: pytest.MonkeyPatc
     post_endpoint = _get_post_endpoint()
     session = _FakeSession(first_user_message_id=11)
 
-    payload = MessageCreateRequest(content="Второе сообщение")
-    asyncio.run(post_endpoint(chat_id=41, payload=payload, request=object(), session=session))
+    class _Req:
+        headers = {"content-type": "multipart/form-data; boundary=demo"}
+
+    asyncio.run(post_endpoint(chat_id=41, request=_Req(), content="Второе сообщение", files=[], session=session))
 
     assert chat.title == messages_main.DEFAULT_CHAT_TITLE
-    assert session.commit_calls == 0
+    assert session.commit_calls == 1
 
 
-def test_first_message_noisy_or_empty_falls_back_to_default(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_empty_message_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     chat = _setup_common_mocks(monkeypatch, chat_title=messages_main.DEFAULT_CHAT_TITLE, user_message_id=21)
     post_endpoint = _get_post_endpoint()
     session = _FakeSession(first_user_message_id=21)
 
-    payload = MessageCreateRequest(content="  \n\t user:   \r\n  ")
-    asyncio.run(post_endpoint(chat_id=41, payload=payload, request=object(), session=session))
+    class _Req:
+        headers = {"content-type": "multipart/form-data; boundary=demo"}
 
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(post_endpoint(chat_id=41, request=_Req(), content="  \n\t user:   \r\n  ", files=[], session=session))
+
+    assert exc.value.status_code == 400
     assert chat.title == messages_main.DEFAULT_CHAT_TITLE
-    assert session.commit_calls == 1
+    assert session.commit_calls == 0
 
 
 def test_non_default_title_is_not_overwritten(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -114,12 +135,14 @@ def test_non_default_title_is_not_overwritten(monkeypatch: pytest.MonkeyPatch) -
     post_endpoint = _get_post_endpoint()
     session = _FakeSession(first_user_message_id=31)
 
-    payload = MessageCreateRequest(content="Новый контент")
-    asyncio.run(post_endpoint(chat_id=41, payload=payload, request=object(), session=session))
+    class _Req:
+        headers = {"content-type": "multipart/form-data; boundary=demo"}
+
+    asyncio.run(post_endpoint(chat_id=41, request=_Req(), content="Новый контент", files=[], session=session))
 
     assert chat.title == "Ручной заголовок"
     assert session.execute_calls == 0
-    assert session.commit_calls == 0
+    assert session.commit_calls == 1
 
 
 def test_legacy_new_chat_title_is_not_backfilled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -127,9 +150,19 @@ def test_legacy_new_chat_title_is_not_backfilled(monkeypatch: pytest.MonkeyPatch
     post_endpoint = _get_post_endpoint()
     session = _FakeSession(first_user_message_id=41)
 
-    payload = MessageCreateRequest(content="Первое сообщение для legacy чата")
-    asyncio.run(post_endpoint(chat_id=41, payload=payload, request=object(), session=session))
+    class _Req:
+        headers = {"content-type": "multipart/form-data; boundary=demo"}
+
+    asyncio.run(
+        post_endpoint(
+            chat_id=41,
+            request=_Req(),
+            content="Первое сообщение для legacy чата",
+            files=[],
+            session=session,
+        )
+    )
 
     assert chat.title == "New chat"
     assert session.execute_calls == 0
-    assert session.commit_calls == 0
+    assert session.commit_calls == 1

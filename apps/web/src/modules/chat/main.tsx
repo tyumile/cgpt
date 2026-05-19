@@ -1,11 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { listMessages, postMessage } from "@/src/modules/api_client/main";
+import { downloadAttachment, listMessages, postMessageWithAttachments } from "@/src/modules/api_client/main";
+import { renderAssistantMarkdown } from "@/src/modules/chat/markdown";
 import { buildInitialState, reduceWsEvent } from "@/src/modules/messages/main";
 import { connectChatWs } from "@/src/modules/realtime/main";
-import { Message } from "@/src/shared/types";
+import { Message, UploadedFileAttachment } from "@/src/shared/types";
 
 type ChatScreenProps = {
   chatId: number;
@@ -25,7 +26,48 @@ export default function ChatScreen({
   onUserMessageFailed,
 }: ChatScreenProps) {
   const [text, setText] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [state, setState] = useState(() => buildInitialState(initialMessages));
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+    if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const onPickFiles = () => {
+    fileInputRef.current?.click();
+  };
+
+  const onSelectedFilesChanged = (event: ChangeEvent<HTMLInputElement>) => {
+    const next = Array.from(event.target.files ?? []);
+    if (next.length === 0) {
+      return;
+    }
+    setSelectedFiles((prev) => [...prev, ...next].slice(0, 10));
+    event.target.value = "";
+  };
+
+  const onRemoveSelectedFile = (idx: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const onDownloadAttachment = async (attachment: UploadedFileAttachment) => {
+    const blob = await downloadAttachment(chatId, attachment.id, sessionToken ?? undefined);
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = attachment.original_name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(href);
+  };
 
   const recoverAfterWsError = async () => {
     for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -83,6 +125,7 @@ export default function ChatScreen({
         status: "streaming",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        attachments: [],
       });
     }
     return rows;
@@ -104,6 +147,14 @@ export default function ChatScreen({
       status: "done",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      attachments: selectedFiles.map((file, idx) => ({
+        id: Date.now() + idx,
+        original_name: file.name,
+        mime_type: file.type || "application/octet-stream",
+        size_bytes: file.size,
+        created_at: new Date().toISOString(),
+        download_path: "",
+      })),
     };
 
     setState((prev) => ({
@@ -113,10 +164,17 @@ export default function ChatScreen({
       isThinking: true,
     }));
     setText("");
+    setSelectedFiles([]);
     onUserMessageSubmitted?.(value);
 
     try {
-      await postMessage(chatId, value, sessionToken ?? undefined);
+      await postMessageWithAttachments(chatId, value, selectedFiles, sessionToken ?? undefined);
+      try {
+        const latest = await listMessages(chatId, sessionToken ?? undefined);
+        setState((prev) => ({ ...prev, messages: latest, error: null }));
+      } catch {
+        // Keep optimistic state if background refresh fails.
+      }
       onUserMessageCreated?.();
     } catch (err) {
       onUserMessageFailed?.();
@@ -135,7 +193,31 @@ export default function ChatScreen({
         {renderedMessages.map((message) => (
           <div key={message.id} style={{ marginBottom: 12 }}>
             <strong>{message.role === "user" ? "Вы" : "Ассистент"}:</strong>
-            <div style={{ whiteSpace: "pre-wrap", maxWidth: "72ch" }}>{message.content}</div>
+            {message.role === "assistant" ? (
+              renderAssistantMarkdown(message.content)
+            ) : (
+              <div style={{ whiteSpace: "pre-wrap", maxWidth: "72ch" }}>{message.content}</div>
+            )}
+            {message.attachments.length > 0 ? (
+              <ul style={{ marginTop: 8, paddingLeft: 18 }}>
+                {message.attachments.map((attachment) => (
+                  <li key={attachment.id}>
+                    {attachment.download_path ? (
+                      <button
+                        type="button"
+                        onClick={() => void onDownloadAttachment(attachment)}
+                        style={{ border: "none", background: "none", color: "#0a58ca", cursor: "pointer", padding: 0 }}
+                      >
+                        {attachment.original_name}
+                      </button>
+                    ) : (
+                      <span>{attachment.original_name}</span>
+                    )}
+                    <span style={{ color: "#666", marginLeft: 6 }}>({formatFileSize(attachment.size_bytes)})</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         ))}
         {state.isThinking && !state.streamingText ? <div>Агент думает...</div> : null}
@@ -144,6 +226,16 @@ export default function ChatScreen({
       {state.error ? <p style={{ color: "#b00020" }}>{state.error}</p> : null}
 
       <form onSubmit={onSubmit} style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          onChange={onSelectedFilesChanged}
+          style={{ display: "none" }}
+        />
+        <button type="button" onClick={onPickFiles} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #ccc", background: "#fff" }}>
+          Скрепка
+        </button>
         <input
           value={text}
           onChange={(event) => setText(event.target.value)}
@@ -154,6 +246,22 @@ export default function ChatScreen({
           Отправить
         </button>
       </form>
+      {selectedFiles.length > 0 ? (
+        <ul style={{ marginTop: 8, paddingLeft: 18 }}>
+          {selectedFiles.map((file, idx) => (
+            <li key={`${file.name}-${file.size}-${idx}`}>
+              {file.name} <span style={{ color: "#666" }}>({formatFileSize(file.size)})</span>{" "}
+              <button
+                type="button"
+                onClick={() => onRemoveSelectedFile(idx)}
+                style={{ border: "none", background: "none", color: "#b00020", cursor: "pointer" }}
+              >
+                удалить
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </main>
   );
 }

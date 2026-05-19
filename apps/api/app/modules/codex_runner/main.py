@@ -13,6 +13,15 @@ class CodexRunError(Exception):
     pass
 
 
+def _resolve_sandbox_mode(raw_mode: str) -> str:
+    mode = (raw_mode or "").strip().lower()
+    allowed = {"workspace-write", "read-only", "danger-full-access"}
+    if mode not in allowed:
+        logger.warning("Unknown CODEX_SANDBOX_MODE=%s, fallback to workspace-write", raw_mode)
+        return "workspace-write"
+    return mode
+
+
 def build_output_file_path(*, workspace_path: str, run_id: int) -> Path:
     return Path(workspace_path).resolve() / f".codex_last_message_{run_id}.txt"
 
@@ -42,7 +51,7 @@ async def run_codex_stream(
         settings.codex_binary,
         "exec",
         "--sandbox",
-        "workspace-write",
+        _resolve_sandbox_mode(settings.codex_sandbox_mode),
         "--skip-git-repo-check",
         "--cd",
         str(workspace),

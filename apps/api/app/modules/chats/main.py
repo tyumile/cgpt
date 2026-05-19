@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import delete, select, text, update
@@ -48,6 +49,20 @@ async def _delete_chat_transactional(chat_id: int, request: Request, session: As
             heartbeat_at=None,
         )
     )
+
+    workspace_root = Path(workspace.root_path).resolve()
+    uploaded_files = (
+        await session.execute(
+            text("SELECT relative_path FROM uploaded_files WHERE chat_id = :chat_id"),
+            {"chat_id": chat_id},
+        )
+    ).mappings().all()
+    for row in uploaded_files:
+        relative_path = str(row["relative_path"])
+        file_path = (workspace_root / relative_path).resolve()
+        if file_path.is_relative_to(workspace_root):
+            file_path.unlink(missing_ok=True)
+
     await session.execute(text("DELETE FROM uploaded_files WHERE chat_id = :chat_id"), {"chat_id": chat_id})
     await session.execute(delete(AgentRun).where(AgentRun.chat_id == chat_id))
     await session.execute(delete(Message).where(Message.chat_id == chat_id))
@@ -91,6 +106,7 @@ async def list_chats(request: Request, session: AsyncSession = Depends(get_sessi
 
 @router.get("/{chat_id}", response_model=ChatResponse)
 async def get_chat(chat_id: int, request: Request, session: AsyncSession = Depends(get_session)) -> ChatResponse:
+    workspace = await get_current_workspace(session)
     cabinet_session = await resolve_cabinet_session_from_request(request, session)
     first_message_subquery = (
         select(Message.content)
@@ -101,7 +117,9 @@ async def get_chat(chat_id: int, request: Request, session: AsyncSession = Depen
     )
     result = await session.execute(
         select(Chat, first_message_subquery.label("preview_first_message")).where(
-            Chat.id == chat_id, Chat.user_id == cabinet_session.user_id
+            Chat.id == chat_id,
+            Chat.user_id == cabinet_session.user_id,
+            Chat.workspace_id == workspace.id,
         )
     )
     row = result.one_or_none()

@@ -35,6 +35,7 @@ class Chat(Base):
     workspace: Mapped[Workspace] = relationship(back_populates="chats")
     messages: Mapped[list["Message"]] = relationship(back_populates="chat")
     runs: Mapped[list["AgentRun"]] = relationship(back_populates="chat")
+    uploaded_files: Mapped[list["UploadedFile"]] = relationship(back_populates="chat")
 
 
 class Message(Base):
@@ -52,6 +53,7 @@ class Message(Base):
     )
 
     chat: Mapped[Chat] = relationship(back_populates="messages")
+    uploaded_files: Mapped[list["UploadedFile"]] = relationship(back_populates="message")
 
 
 class AgentRun(Base):
@@ -79,3 +81,22 @@ class AgentRun(Base):
     )
 
     chat: Mapped[Chat] = relationship(back_populates="runs")
+
+
+class UploadedFile(Base):
+    __tablename__ = "uploaded_files"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, index=True)
+    chat_id: Mapped[int] = mapped_column(ForeignKey("chats.id"), index=True)
+    message_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id"), nullable=True, index=True)
+    original_name: Mapped[str] = mapped_column(String(512))
+    stored_name: Mapped[str] = mapped_column(String(512))
+    relative_path: Mapped[str] = mapped_column(String(2048))
+    mime_type: Mapped[str] = mapped_column(String(255))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    preview_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    chat: Mapped[Chat] = relationship(back_populates="uploaded_files")
+    message: Mapped[Message | None] = relationship(back_populates="uploaded_files")

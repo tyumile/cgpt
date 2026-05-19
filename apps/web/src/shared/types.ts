@@ -7,6 +7,15 @@ export type Chat = {
   preview_first_message?: string | null;
 };
 
+export type UploadedFileAttachment = {
+  id: number;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: string;
+  download_path: string;
+};
+
 export type Message = {
   id: number;
   workspace_id: number;
@@ -16,6 +25,7 @@ export type Message = {
   status: "created" | "streaming" | "done" | "failed";
   created_at: string;
   updated_at: string;
+  attachments: UploadedFileAttachment[];
 };
 
 export type CabinetSession = {

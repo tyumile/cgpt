@@ -40,6 +40,7 @@ export function reduceWsEvent(state: MessageState, event: WsEvent): MessageState
       status: "done",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      attachments: [],
     };
 
     return {

@@ -37,3 +37,17 @@
 2026-05-19 | 10:07 UTC | Chat deletion (UI+API+DB) with uploaded_files cleanup | Added DELETE /api/chats/{id}, marks queued/running runs failed, deletes uploaded_files/agent_runs/messages/chat, sidebar delete UX, /chat/empty flow, tests+build PASS.
 2026-05-19 | 10:07 UTC | Production verification and runtime recovery for /gpt chat delete flow | Resynced cgpt-web/cgpt-api runtimes, fixed chunk 400 and API 405, independent UI recheck PASS (delete non-active/active chat, /chat/empty, no overlap).
 2026-05-19 | 10:28 UTC | Chat auto-title from first user message | New chats default to "Новый чат"; first user message sets sanitized title once; second messages do not overwrite; API/Web checks and production verification PASS.
+2026-05-19 | 10:38 UTC | AGENTS + code review instruction alignment | Reviewed local/parent AGENTS, confirmed code/front review checklists, noted missing /srv/projects/docs/test_review.md and parent path mismatch in local note.
+2026-05-19 | 10:39 UTC | Прочитаны локальный и общий AGENTS | Правила загружены и приняты к исполнению
+2026-05-19 | 10:42 UTC | Full submodule code review (code_review.md only) | Reviewed all API/Web submodules; reported reliability, contract, and performance findings with evidence; tests: API 17 passed via .venv, web build passed.
+2026-05-19 | 10:52 UTC | Review fixes via subagents + integration hardening | Applied 6 review fixes (realtime/worker/cabinet/chat_bootstrap/indexes/workspace-scoping), then hardened session transaction flow and updated affected tests; web build PASS, API tests rerun after test updates.
+2026-05-19 | 10:59 UTC | Assistant markdown rendering in chat | Assistant answers now render markdown with clickable links (including bare URLs) in chat module only.
+2026-05-19 | 11:04 UTC | Prod web restart for markdown rollout | Restarted cgpt-web to load fresh Next build; verified chat route chunk 200 and markdown renderer code present on production.
+2026-05-19 | 11:09 UTC | Повторно прочитаны AGENTS инструкции | Локальный и общий policy-файл прочитаны, правила приняты
+2026-05-19 | 11:12 UTC | Impact map for chat file attachments | Mapped UI/API/DB/runner changes and produced implementation questions.
+2026-05-19 | 11:29 UTC | Message attachments (paperclip) end-to-end | Implemented multipart upload/download, per-user workspace storage, agent file-context, UI attachment bubbles, and passing API/web checks.
+2026-05-19 | 11:47 UTC | Prod /gpt Loading fix via web runtime restart | Restarted cgpt-web to resync Next chunk manifest; verified all /gpt/chat/new chunks return 200.
+2026-05-19 | 11:53 UTC | Fixed file-upload 500 in production | Restarted cgpt-api/cgpt-worker to load multipart endpoint; verified external upload POST returns 200 and run starts.
+2026-05-19 | 11:55 UTC | CGPT project logo generation | Generated logo asset and saved it under apps/web/public/brand/cgpt-logo.png.
+2026-05-19 | 11:59 UTC | External CGPT logo download link | Published logo copy at https://aiaicom.ru/cgpt-logo.png and verified HTTP 200 image/png.
+2026-05-19 | 12:00 UTC | Fix bwrap namespace failures for agent file processing | Added configurable CODEX_SANDBOX_MODE and set prod api/worker to danger-full-access; verified attachment read run returns expected text.

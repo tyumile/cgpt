@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     codex_timeout_seconds: int = Field(default=600, alias="CODEX_TIMEOUT_SECONDS")
     codex_binary: str = Field(default="codex", alias="CODEX_BINARY")
     codex_config_dir: Path | None = Field(default=None, alias="CODEX_CONFIG_DIR")
+    codex_sandbox_mode: str = Field(default="workspace-write", alias="CODEX_SANDBOX_MODE")
 
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     run_queue_name: str = Field(default="agent_runs:queue", alias="RUN_QUEUE_NAME")

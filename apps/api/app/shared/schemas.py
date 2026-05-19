@@ -37,6 +37,15 @@ class MessageCreateRequest(BaseModel):
     content: str
 
 
+class UploadedFileResponse(BaseModel):
+    id: int
+    original_name: str
+    mime_type: str
+    size_bytes: int
+    created_at: datetime
+    download_path: str
+
+
 class MessageResponse(BaseModel):
     id: int
     workspace_id: int
@@ -46,6 +55,7 @@ class MessageResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+    attachments: list[UploadedFileResponse] = []
 
 
 class AgentRunResponse(BaseModel):

@@ -20,3 +20,18 @@ def test_prompt_trims_to_last_30() -> None:
     assert "USER: m0" not in prompt
     assert "USER: m5" in prompt
     assert "USER: m34" in prompt
+
+
+def test_prompt_includes_attachment_paths_and_user_upload_root() -> None:
+    messages = [SimpleNamespace(role="user", content="Проверь файлы")]
+    prompt = build_prompt(
+        messages=messages,
+        workspace_path="/tmp/ws",
+        attachment_paths=["/tmp/ws/uploads/user_17/chat_41/a.txt", "/tmp/ws/uploads/user_17/chat_41/b.csv"],
+        user_upload_root="/tmp/ws/uploads/user_17",
+    )
+
+    assert "User upload root for this user: /tmp/ws/uploads/user_17" in prompt
+    assert "Files attached to the latest user message:" in prompt
+    assert "- /tmp/ws/uploads/user_17/chat_41/a.txt" in prompt
+    assert "- /tmp/ws/uploads/user_17/chat_41/b.csv" in prompt

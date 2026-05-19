@@ -8,11 +8,22 @@ from app.modules.chats import main as chats_main
 
 
 class _FakeResult:
-    def __init__(self, *, scalar=None):
+    def __init__(self, *, scalar=None, mappings_rows=None):
         self._scalar = scalar
+        self._mappings_rows = mappings_rows or []
 
     def scalar_one_or_none(self):
         return self._scalar
+
+    def mappings(self):
+        class _Rows:
+            def __init__(self, rows):
+                self._rows = rows
+
+            def all(self):
+                return self._rows
+
+        return _Rows(self._mappings_rows)
 
 
 class _FakeSession:
@@ -78,7 +89,7 @@ def test_delete_chat_returns_404_when_chat_missing(monkeypatch: pytest.MonkeyPat
         return SimpleNamespace(user_id=17)
 
     async def _fake_workspace(_session):
-        return SimpleNamespace(id=29)
+        return SimpleNamespace(id=29, root_path="/tmp/workspace")
 
     monkeypatch.setattr(chats_main, "resolve_cabinet_session_from_request", _fake_resolve)
     monkeypatch.setattr(chats_main, "get_current_workspace", _fake_workspace)
@@ -107,7 +118,7 @@ def test_delete_chat_deletes_uploaded_files_runs_messages_and_chat_by_chat_id(
         return SimpleNamespace(user_id=17)
 
     async def _fake_workspace(_session):
-        return SimpleNamespace(id=29)
+        return SimpleNamespace(id=29, root_path="/tmp/workspace")
 
     monkeypatch.setattr(chats_main, "resolve_cabinet_session_from_request", _fake_resolve)
     monkeypatch.setattr(chats_main, "get_current_workspace", _fake_workspace)
@@ -141,7 +152,7 @@ def test_delete_chat_marks_queued_and_running_runs_failed_with_reason(
         return SimpleNamespace(user_id=17)
 
     async def _fake_workspace(_session):
-        return SimpleNamespace(id=29)
+        return SimpleNamespace(id=29, root_path="/tmp/workspace")
 
     monkeypatch.setattr(chats_main, "resolve_cabinet_session_from_request", _fake_resolve)
     monkeypatch.setattr(chats_main, "get_current_workspace", _fake_workspace)
