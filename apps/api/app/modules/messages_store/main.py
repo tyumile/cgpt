@@ -1,4 +1,4 @@
-from sqlalchemy import desc, select
+from sqlalchemy import desc, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Message
@@ -21,6 +21,10 @@ async def create_message(
         status=status,
     )
     session.add(message)
+    await session.execute(
+        text("UPDATE chats SET updated_at = now() WHERE id = :chat_id"),
+        {"chat_id": chat_id},
+    )
     await session.commit()
     await session.refresh(message)
     return message

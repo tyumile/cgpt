@@ -14,4 +14,4 @@ This module must provide a stable output consumed by downstream modules in the r
 
 ## Mandatory Reading
 - /srv/projects/aicom/cgpt/AGENTS.md
-- /srv/projects/aicom/AGENTS.md
+- /srv/projects/AGENTS.md

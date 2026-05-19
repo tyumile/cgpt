@@ -7,6 +7,19 @@ class HealthResponse(BaseModel):
     status: str
 
 
+class CabinetAuthRequest(BaseModel):
+    email: str
+    full_name: str
+
+
+class CabinetAuthResponse(BaseModel):
+    user_id: int
+    email: str
+    full_name: str
+    session_token: str
+    expires_at: datetime
+
+
 class ChatCreateRequest(BaseModel):
     title: str | None = None
 
@@ -17,6 +30,7 @@ class ChatResponse(BaseModel):
     title: str
     created_at: datetime
     updated_at: datetime
+    preview_first_message: str | None = None
 
 
 class MessageCreateRequest(BaseModel):

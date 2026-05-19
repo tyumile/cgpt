@@ -4,6 +4,7 @@ export type Chat = {
   title: string;
   created_at: string;
   updated_at: string;
+  preview_first_message?: string | null;
 };
 
 export type Message = {
@@ -15,6 +16,18 @@ export type Message = {
   status: "created" | "streaming" | "done" | "failed";
   created_at: string;
   updated_at: string;
+};
+
+export type CabinetSession = {
+  token: string;
+  email: string;
+  full_name: string;
+  expires_at: number;
+};
+
+export type ChatHistoryItem = {
+  chat: Chat;
+  preview: string | null;
 };
 
 export type MessagePostResponse = {

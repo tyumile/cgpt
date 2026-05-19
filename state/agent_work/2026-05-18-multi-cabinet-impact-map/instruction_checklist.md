@@ -1,0 +1,25 @@
+# Instruction Checklist
+
+- Active rule sources:
+  - `/srv/projects/aicom/cgpt/AGENTS.md`
+  - `/srv/projects/aicom/AGENTS.md` (authoritative parent policy present in repo tree)
+- Policy source resolution:
+  - Existing module contracts reference `/srv/projects/AGENTS.md`, but that file is absent on host.
+  - For this task, parent policy resolution uses `/srv/projects/aicom/AGENTS.md`.
+  - New module `AGENTS.md` files will keep mandatory links as required by local module contract format, while runtime decisioning follows actual existing parent path above.
+- Required specs/docs read:
+  - `docs/module_chain.md`
+  - `docs/module_boundaries.md`
+  - `docs/architecture.md`
+  - `docs/stage1_acceptance.md`
+- Scope in:
+  - Multi-cabinet onboarding + per-cabinet chat/message/ws isolation + left sidebar history UX.
+- Scope out:
+  - No password auth, logout, chat rename/delete.
+- Required verification commands:
+  - Static code/schema discovery, backend tests, frontend lint/build smoke, curl/ws smoke.
+- Required review types:
+  - Backend and frontend implementation via subagents.
+  - Independent plan review and independent result verification via subagents.
+- Definition of Done for this step:
+  - Impact map + clarified implementation constraints completed before coding.

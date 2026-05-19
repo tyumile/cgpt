@@ -1,6 +1,11 @@
 import { WsEvent } from "@/src/shared/types";
 
-const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE ?? "ws://localhost:8000";
+const PUBLIC_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "/gpt";
+const WS_BASE =
+  process.env.NEXT_PUBLIC_WS_BASE ??
+  (typeof window !== "undefined"
+    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}${PUBLIC_BASE_PATH}`
+    : "ws://localhost:8000");
 
 export type WsConnection = {
   close: () => void;
@@ -8,6 +13,7 @@ export type WsConnection = {
 
 export function connectChatWs(
   chatId: number,
+  sessionToken: string | null,
   onEvent: (event: WsEvent) => void,
   onError: (message: string) => void,
 ): WsConnection {
@@ -20,7 +26,12 @@ export function connectChatWs(
       return;
     }
 
-    socket = new WebSocket(`${WS_BASE}/ws/chats/${chatId}`);
+    const wsUrl = new URL(`${WS_BASE}/ws/chats/${chatId}`);
+    if (sessionToken) {
+      wsUrl.searchParams.set("session_token", sessionToken);
+    }
+
+    socket = new WebSocket(wsUrl.toString());
 
     socket.onmessage = (ev) => {
       try {

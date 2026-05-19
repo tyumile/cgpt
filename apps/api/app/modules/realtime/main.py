@@ -3,9 +3,13 @@ import json
 import logging
 from collections import defaultdict
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from sqlalchemy import select
 
 from app.config.main import get_settings
+from app.db.main import AsyncSessionLocal
+from app.db.models import Chat
+from app.modules.cabinet_session.main import resolve_cabinet_session_from_websocket
 from app.shared.redis_client import get_redis
 
 router = APIRouter()
@@ -99,7 +103,24 @@ async def stop_realtime_bridge() -> None:
 
 
 @router.websocket("/ws/chats/{chat_id}")
-async def chat_ws(websocket: WebSocket, chat_id: int) -> None:
+async def chat_ws(
+    websocket: WebSocket,
+    chat_id: int,
+) -> None:
+    async with AsyncSessionLocal() as session:
+        try:
+            cabinet_session = await resolve_cabinet_session_from_websocket(websocket, session)
+        except HTTPException as exc:
+            await websocket.close(code=1008, reason=str(exc.detail))
+            return
+
+        chat_exists_result = await session.execute(
+            select(Chat.id).where(Chat.id == chat_id, Chat.user_id == cabinet_session.user_id)
+        )
+        if chat_exists_result.scalar_one_or_none() is None:
+            await websocket.close(code=1008, reason="Chat not found")
+            return
+
     await manager.connect(chat_id, websocket)
     try:
         while True:

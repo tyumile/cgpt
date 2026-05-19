@@ -1,13 +1,22 @@
+import { getCabinetSessionToken } from "@/src/modules/cabinet_auth/main";
 import { Chat, Message, MessagePostResponse } from "@/src/shared/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+const PUBLIC_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "/gpt";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? PUBLIC_BASE_PATH;
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+type RequestOptions = RequestInit & {
+  sessionToken?: string | null;
+};
+
+async function request<T>(path: string, init?: RequestOptions): Promise<T> {
+  const { sessionToken, ...requestInit } = init ?? {};
+  const token = sessionToken ?? getCabinetSessionToken();
   const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
+    ...requestInit,
     headers: {
       "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
+      ...(token ? { "X-Cabinet-Session": token } : {}),
+      ...(requestInit.headers ?? {}),
     },
     cache: "no-store",
   });
@@ -20,28 +29,30 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function listChats(): Promise<Chat[]> {
-  return request<Chat[]>("/api/chats");
+export async function listChats(sessionToken?: string): Promise<Chat[]> {
+  return request<Chat[]>("/api/chats", { sessionToken });
 }
 
-export async function createChat(title?: string): Promise<Chat> {
+export async function createChat(title?: string, sessionToken?: string): Promise<Chat> {
   return request<Chat>("/api/chats", {
     method: "POST",
     body: JSON.stringify({ title }),
+    sessionToken,
   });
 }
 
-export async function getChat(chatId: number): Promise<Chat> {
-  return request<Chat>(`/api/chats/${chatId}`);
+export async function getChat(chatId: number, sessionToken?: string): Promise<Chat> {
+  return request<Chat>(`/api/chats/${chatId}`, { sessionToken });
 }
 
-export async function listMessages(chatId: number): Promise<Message[]> {
-  return request<Message[]>(`/api/chats/${chatId}/messages`);
+export async function listMessages(chatId: number, sessionToken?: string): Promise<Message[]> {
+  return request<Message[]>(`/api/chats/${chatId}/messages`, { sessionToken });
 }
 
-export async function postMessage(chatId: number, content: string): Promise<MessagePostResponse> {
+export async function postMessage(chatId: number, content: string, sessionToken?: string): Promise<MessagePostResponse> {
   return request<MessagePostResponse>(`/api/chats/${chatId}/messages`, {
     method: "POST",
     body: JSON.stringify({ content }),
+    sessionToken,
   });
 }

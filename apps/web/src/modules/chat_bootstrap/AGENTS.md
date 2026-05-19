@@ -14,4 +14,4 @@ This module must provide a stable output consumed by downstream frontend/backend
 
 ## Mandatory Reading
 - /srv/projects/aicom/cgpt/AGENTS.md
-- /srv/projects/aicom/AGENTS.md
+- /srv/projects/AGENTS.md

@@ -1,1 +1,7 @@
-Да, проверка прошла.
+Не смог выполнить `preview smoke 1779108494`: команды внутри текущего workspace не запускаются из-за ошибки sandbox:
+
+```text
+bwrap: Creating new namespace failed: Permission denied
+```
+
+За пределы `/srv/projects/aicom/cgpt/runtime/workspaces/default` не выходил, файлы не изменял.

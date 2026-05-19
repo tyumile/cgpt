@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config.main import get_settings
 from app.db.main import AsyncSessionLocal, init_db
+from app.modules.cabinet_identity.main import router as cabinet_identity_router
 from app.modules.chats.main import router as chats_router
 from app.modules.health.main import router as health_router
 from app.modules.messages.main import router as messages_router
@@ -24,6 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(health_router)
+app.include_router(cabinet_identity_router)
 app.include_router(chats_router)
 app.include_router(messages_router)
 app.include_router(realtime_router)

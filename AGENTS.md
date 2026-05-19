@@ -11,12 +11,11 @@ These rules extend and must not weaken parent repository policy.
 
 ## Mandatory Reading Chain
 1. This file: `/srv/projects/aicom/cgpt/AGENTS.md`
-2. Parent policy: `/srv/projects/aicom/AGENTS.md`
+2. Parent policy: `/srv/projects/AGENTS.md`
 3. Project docs and module docs inside this repository
 
 Note:
-- Requested path `/srv/projects/AGENTS.md` is currently missing in this environment.
-- Until it exists, `/srv/projects/aicom/AGENTS.md` is the mandatory top-level policy source.
+- Top-level policy source: `/srv/projects/AGENTS.md`.
 
 ## Core Implementation Rules
 1. Build by modules with process-chain numbering.
@@ -28,7 +27,7 @@ Note:
    - role: developer of this module;
    - module task;
    - output artifact/data passed to downstream modules;
-   - mandatory links to local project `AGENTS.md` and parent `/srv/projects/aicom/AGENTS.md`.
+   - mandatory links to local project `AGENTS.md` and parent `/srv/projects/AGENTS.md`.
 
 ## Task Log Rule
 After each completed task, append a concise entry to `/srv/projects/aicom/cgpt/commits.md` with:

@@ -14,4 +14,4 @@ This module must return a clear output contract consumed by downstream modules i
 
 ## Mandatory Reading
 - /srv/projects/aicom/cgpt/AGENTS.md
-- /srv/projects/aicom/AGENTS.md
+- /srv/projects/AGENTS.md

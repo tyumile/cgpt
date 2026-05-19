@@ -1,0 +1,7 @@
+Не смог выполнить `preview smoke 1779108984754`: запуск команд в текущем workspace завершается ошибкой окружения:
+
+```text
+bwrap: Creating new namespace failed: Permission denied
+```
+
+Файлы не изменял, за пределы текущего workspace не выходил.

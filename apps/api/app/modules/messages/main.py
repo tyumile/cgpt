@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.main import get_session
 from app.db.models import Chat
 from app.modules.agent_runs.main import create_agent_run, mark_run_failed
+from app.modules.cabinet_session.main import resolve_cabinet_session_from_request
 from app.modules.messages_store.main import create_message, get_chat_messages
 from app.modules.queue_meta.main import set_enqueued
 from app.modules.run_enqueuer.main import build_job, enqueue_run
@@ -20,12 +21,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chats/{chat_id}/messages", tags=["messages"])
 
 
-@router.get("", response_model=list[MessageResponse])
-async def list_messages(chat_id: int, session: AsyncSession = Depends(get_session)) -> list[MessageResponse]:
-    result = await session.execute(select(Chat).where(Chat.id == chat_id))
+async def _get_owned_chat_or_404(session: AsyncSession, *, chat_id: int, user_id: int) -> Chat:
+    result = await session.execute(select(Chat).where(Chat.id == chat_id, Chat.user_id == user_id))
     chat = result.scalar_one_or_none()
     if chat is None:
         raise HTTPException(status_code=404, detail="Chat not found")
+    return chat
+
+
+@router.get("", response_model=list[MessageResponse])
+async def list_messages(
+    chat_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> list[MessageResponse]:
+    cabinet_session = await resolve_cabinet_session_from_request(request, session)
+    await _get_owned_chat_or_404(session, chat_id=chat_id, user_id=cabinet_session.user_id)
 
     messages = await get_chat_messages(session, chat_id=chat_id)
     return [MessageResponse.model_validate(message, from_attributes=True) for message in messages]
@@ -35,12 +46,11 @@ async def list_messages(chat_id: int, session: AsyncSession = Depends(get_sessio
 async def create_user_message(
     chat_id: int,
     payload: MessageCreateRequest,
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> MessagePostResponse:
-    result = await session.execute(select(Chat).where(Chat.id == chat_id))
-    chat = result.scalar_one_or_none()
-    if chat is None:
-        raise HTTPException(status_code=404, detail="Chat not found")
+    cabinet_session = await resolve_cabinet_session_from_request(request, session)
+    chat = await _get_owned_chat_or_404(session, chat_id=chat_id, user_id=cabinet_session.user_id)
 
     logger.info("Incoming user message", extra={"chat_id": chat_id})
 
