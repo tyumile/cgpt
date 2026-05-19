@@ -26,7 +26,16 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
     throw new Error(text || `Request failed: ${response.status}`);
   }
 
-  return (await response.json()) as T;
+  if (response.status === 204 || response.status === 205) {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+  if (!text) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
 }
 
 export async function listChats(sessionToken?: string): Promise<Chat[]> {
@@ -43,6 +52,13 @@ export async function createChat(title?: string, sessionToken?: string): Promise
 
 export async function getChat(chatId: number, sessionToken?: string): Promise<Chat> {
   return request<Chat>(`/api/chats/${chatId}`, { sessionToken });
+}
+
+export async function deleteChat(chatId: number, sessionToken?: string): Promise<void> {
+  return request<void>(`/api/chats/${chatId}`, {
+    method: "DELETE",
+    sessionToken,
+  });
 }
 
 export async function listMessages(chatId: number, sessionToken?: string): Promise<Message[]> {

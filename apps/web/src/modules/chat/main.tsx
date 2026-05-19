@@ -129,13 +129,13 @@ export default function ChatScreen({
   };
 
   return (
-    <main style={{ maxWidth: 900, margin: "0 auto", padding: 20, width: "100%" }}>
+    <main style={{ margin: 0, padding: 20, width: "100%", boxSizing: "border-box", minWidth: 0 }}>
       <h1 style={{ marginTop: 0 }}>SaaS Chat MVP</h1>
       <div style={{ border: "1px solid #ddd", borderRadius: 8, background: "#fff", height: "60vh", overflowY: "auto", padding: 12 }}>
         {renderedMessages.map((message) => (
           <div key={message.id} style={{ marginBottom: 12 }}>
             <strong>{message.role === "user" ? "Вы" : "Ассистент"}:</strong>
-            <div style={{ whiteSpace: "pre-wrap" }}>{message.content}</div>
+            <div style={{ whiteSpace: "pre-wrap", maxWidth: "72ch" }}>{message.content}</div>
           </div>
         ))}
         {state.isThinking && !state.streamingText ? <div>Агент думает...</div> : null}

@@ -1,0 +1,27 @@
+# Instruction Checklist
+
+- active rule sources:
+  - /srv/projects/aicom/cgpt/AGENTS.md
+  - /srv/projects/aicom/AGENTS.md
+- required specs/docs read:
+  - /srv/projects/aicom/cgpt/docs/module_chain.md
+  - /etc/nginx/sites-available/aiaicom.ru
+  - /etc/systemd/system/cgpt-web.service
+- scope in:
+  - production runtime for cgpt web service (`cgpt-web.service`)
+  - verification of `/gpt` chunk and hydrated UI
+- scope out:
+  - code changes in backend/api logic
+  - DB schema or data migrations
+  - unrelated nginx routes
+- required verification commands:
+  - curl checks for `/gpt/chat/new` and chunk URL
+  - `systemctl status cgpt-web.service`
+  - independent production UI check via subagent
+  - `git diff --name-only`, `git diff --stat`, `git diff --check`
+- required review types:
+  - independent production verification via subagent
+- explicit Definition of Done:
+  - production `/gpt` no longer references or serves failing chunk with 400
+  - current referenced chunk returns 200
+  - hydrated UI is reachable and chat layout checks pass in production verification

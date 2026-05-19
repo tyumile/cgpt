@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from redis.exceptions import RedisError
@@ -6,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.main import get_session
-from app.db.models import Chat
+from app.db.models import Chat, Message
 from app.modules.agent_runs.main import create_agent_run, mark_run_failed
 from app.modules.cabinet_session.main import resolve_cabinet_session_from_request
 from app.modules.messages_store.main import create_message, get_chat_messages
@@ -20,6 +21,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chats/{chat_id}/messages", tags=["messages"])
 
+DEFAULT_CHAT_TITLE = "Новый чат"
+CHAT_TITLE_MAX_LEN = 255
+_LEADING_NOISE_RE = re.compile(
+    r"^(?:user|assistant|system|bot|пользователь|ассистент|система|вопрос|question|запрос|request)\s*[:>\-\]]\s*",
+    re.IGNORECASE,
+)
+_LEADING_PUNCT_RE = re.compile(r"^[\s\-*#>.,:;!?()\[\]\"'`]+")
+
 
 async def _get_owned_chat_or_404(session: AsyncSession, *, chat_id: int, user_id: int) -> Chat:
     result = await session.execute(select(Chat).where(Chat.id == chat_id, Chat.user_id == user_id))
@@ -27,6 +36,35 @@ async def _get_owned_chat_or_404(session: AsyncSession, *, chat_id: int, user_id
     if chat is None:
         raise HTTPException(status_code=404, detail="Chat not found")
     return chat
+
+
+def _build_chat_title_from_first_message(content: str) -> str:
+    cleaned = re.sub(r"\s+", " ", content.strip())
+    cleaned = _LEADING_NOISE_RE.sub("", cleaned)
+    cleaned = _LEADING_PUNCT_RE.sub("", cleaned).strip()
+    if not cleaned:
+        return DEFAULT_CHAT_TITLE
+    return cleaned[:CHAT_TITLE_MAX_LEN]
+
+
+async def _maybe_set_initial_chat_title(
+    session: AsyncSession, *, chat: Chat, user_message: Message, message_content: str
+) -> None:
+    if chat.title != DEFAULT_CHAT_TITLE:
+        return
+
+    first_user_message_result = await session.execute(
+        select(Message.id)
+        .where(Message.chat_id == chat.id, Message.role == "user")
+        .order_by(Message.created_at.asc(), Message.id.asc())
+        .limit(1)
+    )
+    first_user_message_id = first_user_message_result.scalar_one_or_none()
+    if first_user_message_id != user_message.id:
+        return
+
+    chat.title = _build_chat_title_from_first_message(message_content)
+    await session.commit()
 
 
 @router.get("", response_model=list[MessageResponse])
@@ -62,6 +100,7 @@ async def create_user_message(
         content=payload.content,
         status="done",
     )
+    await _maybe_set_initial_chat_title(session, chat=chat, user_message=user_message, message_content=payload.content)
 
     run = await create_agent_run(
         session,

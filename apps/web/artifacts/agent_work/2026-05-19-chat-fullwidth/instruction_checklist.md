@@ -1,0 +1,41 @@
+# Instruction Checklist
+
+- active rule sources:
+  - /srv/projects/aicom/cgpt/AGENTS.md
+  - /srv/projects/aicom/AGENTS.md
+  - module docs: /srv/projects/aicom/cgpt/docs/module_chain.md, /srv/projects/aicom/cgpt/docs/module_boundaries.md
+- required specs/docs read:
+  - /srv/projects/aicom/cgpt/README.md
+  - /srv/projects/docs/code_review.md
+  - /srv/projects/docs/front_review.md
+  - NOTE: /srv/projects/docs/test_review.md is referenced by policy but file is missing in filesystem.
+- scope in:
+  - apps/web/src/app/chat/[id]/page.tsx
+  - apps/web/src/modules/chat/main.tsx
+  - apps/web/src/modules/chat_history/main.tsx
+- scope out:
+  - backend/api modules
+  - message transport logic, auth logic, DB schema, contracts
+  - unrelated screens/routes
+- required verification commands:
+  - git diff --name-only
+  - git diff --stat
+  - git diff --check
+  - npm run lint (apps/web)
+  - npm run build (apps/web)
+- required review types:
+  - independent Plan Review
+  - independent Result Verification
+  - frontend review against /srv/projects/docs/front_review.md
+  - code review against /srv/projects/docs/code_review.md
+- explicit Definition of Done for this task:
+  - chat area is full-width from sidebar right border to viewport right edge on desktop.
+  - loading and error states in chat area are also full-width.
+  - mobile sidebar is hidden by default and opened via button; it can be closed.
+  - message text column keeps readable max width instead of stretching unlimited.
+  - existing chat send/stream/history behavior remains unchanged.
+
+- localization rule:
+  - all new user-facing controls introduced by this task must be Russian.
+- completion logging rule:
+  - append `/srv/projects/aicom/cgpt/commits.md` entry in UTC format after successful verification.

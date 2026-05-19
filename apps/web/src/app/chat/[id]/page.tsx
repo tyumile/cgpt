@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import ChatScreen from "@/src/modules/chat/main";
+import { deleteChat } from "@/src/modules/api_client/main";
 import { authorizeCabinet, clearCabinetSession, loadCabinetSession } from "@/src/modules/cabinet_auth/main";
 import { loadInitialMessages, normalizeChatParam, resolveChat } from "@/src/modules/chat_bootstrap/main";
 import ChatHistorySidebar from "@/src/modules/chat_history/main";
@@ -21,7 +22,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
   const [chatId, setChatId] = useState<number | null>(normalizeChatParam(params.id));
   const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(params.id !== "empty");
   const [error, setError] = useState<string | null>(null);
   const [historyRefreshNonce, setHistoryRefreshNonce] = useState(0);
   const [optimisticPreview, setOptimisticPreview] = useState<{ chatId: number; content: string } | null>(null);
@@ -42,11 +43,31 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         return;
       }
 
+      if (params.id === "empty") {
+        if (!active) {
+          return;
+        }
+        setLoading(false);
+        setError(null);
+        setChatId(null);
+        setMessages([]);
+        setOptimisticPreview(null);
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
         const chat = await resolveChat(params.id, session.token);
         if (!active) {
+          return;
+        }
+        if (chat === null) {
+          setLoading(false);
+          setError(null);
+          setChatId(null);
+          setMessages([]);
+          setOptimisticPreview(null);
           return;
         }
 
@@ -116,8 +137,26 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     }
   };
 
+  const onDeleteChat = async (targetChatId: number) => {
+    if (!session?.token) {
+      throw new Error("Cabinet session is missing");
+    }
+
+    await deleteChat(targetChatId, session.token);
+    setHistoryRefreshNonce((prev) => prev + 1);
+
+    if (targetChatId === chatId) {
+      setChatId(null);
+      setMessages([]);
+      setOptimisticPreview(null);
+      setLoading(false);
+      setError(null);
+      router.push("/chat/empty");
+    }
+  };
+
   if (!sessionChecked) {
-    return <main style={{ maxWidth: 900, margin: "0 auto", padding: 20 }}>Loading...</main>;
+    return <main style={{ margin: "0 auto", padding: 20 }}>Loading...</main>;
   }
 
   if (!session) {
@@ -184,14 +223,21 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         optimisticPreview={optimisticPreview}
         onCreateChat={() => router.push("/chat/new")}
         onSelectChat={(nextChatId) => router.push(`/chat/${nextChatId}`)}
+        onDelete={onDeleteChat}
       />
 
-      <section style={{ flex: 1 }}>
-        {loading || chatId === null ? <main style={{ maxWidth: 900, margin: "0 auto", padding: 20 }}>Загрузка...</main> : null}
+      <section style={{ flex: 1, minWidth: 0, padding: "0 2%", boxSizing: "border-box" }}>
+        {loading ? <main style={{ margin: "0 auto", padding: 20 }}>Загрузка...</main> : null}
 
         {!loading && error ? (
-          <main style={{ maxWidth: 900, margin: "0 auto", padding: 20 }}>
+          <main style={{ margin: "0 auto", padding: 20 }}>
             <p style={{ color: "#b00020" }}>{error}</p>
+          </main>
+        ) : null}
+
+        {!loading && !error && chatId === null ? (
+          <main style={{ margin: "0 auto", padding: 20 }}>
+            <p style={{ margin: 0, color: "#444" }}>Чат не выбран. Выберите существующий чат или создайте новый.</p>
           </main>
         ) : null}
 

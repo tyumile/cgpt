@@ -18,3 +18,22 @@
 2026-05-18 | 13:08 UTC | Third external UI clickthrough after websocket session handling fix | PASS: assistant response received, no 504 on messages endpoints, session/history persisted
 2026-05-18 | 13:09 UTC | Fix intermittent 504 on /gpt/api/chats/{id}/messages | Moved websocket auth/ownership DB checks to short-lived session before subscribe; removed long-lived DB session from ws lifecycle; external clickthrough PASS
 - 2026-05-19 | 05:10 UTC | Commit and push yesterday changes | Bundled pending 2026-05-18 updates into one git commit and pushed to origin/main.
+2026-05-19 | 05:21 UTC | Chat UI full-width impact map | Reviewed AGENTS/workflow, mapped width constraints and downstream impacts, prepared clarification questions.
+2026-05-19 | 05:30 UTC | Прочтение AGENTS и формулировка роли | Локальный и общий AGENTS прочитаны, роль и задача сформулированы.
+2026-05-19 | 05:32 UTC | Показ общего AGENTS с переводом | Выведен полный текст общего AGENTS и дан русскоязычный перевод терминов.
+2026-05-19 | 05:34 UTC | Вывод общего AGENTS полностью на русском | Подготовлен текст политики без англоязычных формулировок.
+2026-05-19 | 05:39 UTC | Добавление workflow-правил в AGENTS | В локальный AGENTS добавлены 3 правила: изоляция субагентов, точечные изменения по ТЗ, frontend-проверка отдельным субагентом.
+2026-05-19 | 05:39 UTC | Production UI verification for https://aiaicom.ru/gpt | Blocked: app stuck on Loading due Next chunk 400, target checks unverified
+2026-05-19 | 05:46 UTC | Final production UI recheck on https://aiaicom.ru/gpt | BLOCKING ISSUES confirmed on desktop/mobile: stuck Loading, Next chunk /gpt/_next/static/chunks/app/chat/%5Bid%5D/page-8e4151c126cc0e3e.js returns 400
+2026-05-19 | 05:48 UTC | Chat full-width UI implementation via subagents | Implemented pane-width and mobile sidebar behavior; build PASS; production verification blocked by remote Next chunk 400.
+2026-05-19 | 06:04 UTC | Production UI verification after runtime fix on https://aiaicom.ru/gpt | PASS: no chunk 400 Loading lock; desktop/mobile/sidebar/readability checks verified with Playwright evidence
+2026-05-19 | 06:06 UTC | Resolve /gpt chunk 400 via cgpt-web restart | Restarted stale Next process; production chunk now 200 and UI verification PASS.
+2026-05-19 | 06:38 UTC | Add 2% chat pane side offsets | Added 2% horizontal padding for chat pane section and fixed width overflow with border-box/minWidth guards.
+2026-05-19 | 06:41 UTC | Recover gray /gpt screen (chunk mismatch) | Restarted cgpt-web after .next hash drift; production chunk resolved and UI bootstrap restored.
+2026-05-19 | 06:45 UTC | Quick production visual check for /gpt hydration | PASS: auth UI rendered after 15s; no console errors, no failed requests, no HTTP 4xx/5xx (no chunk 400).
+2026-05-19 | 09:45 UTC | Restore production /gpt frontend chunk delivery | Restarted cgpt-web runtime process to resync Next build manifest; critical chat page chunk now 200 and /gpt,/gpt/chat/new client boot verified.
+2026-05-19 | 10:04 UTC | Production browser delete-flow verification on /gpt | PASS for auth/create/non-active+active delete and /chat/empty redirect; found MAJOR layout overlap, no blocking console/network errors.
+2026-05-19 | 10:07 UTC | Recheck production /gpt delete UI + layout after overlap fix | PASS: non-active/active delete flow works, /chat/empty redirect works, no key 4xx/5xx, aside-section overlap resolved on desktop.
+2026-05-19 | 10:07 UTC | Chat deletion (UI+API+DB) with uploaded_files cleanup | Added DELETE /api/chats/{id}, marks queued/running runs failed, deletes uploaded_files/agent_runs/messages/chat, sidebar delete UX, /chat/empty flow, tests+build PASS.
+2026-05-19 | 10:07 UTC | Production verification and runtime recovery for /gpt chat delete flow | Resynced cgpt-web/cgpt-api runtimes, fixed chunk 400 and API 405, independent UI recheck PASS (delete non-active/active chat, /chat/empty, no overlap).
+2026-05-19 | 10:28 UTC | Chat auto-title from first user message | New chats default to "Новый чат"; first user message sets sanitized title once; second messages do not overwrite; API/Web checks and production verification PASS.
