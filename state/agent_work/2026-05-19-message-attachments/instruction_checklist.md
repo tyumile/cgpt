@@ -1,0 +1,27 @@
+# Instruction Checklist
+- Active rule sources:
+  - /srv/projects/aicom/cgpt/AGENTS.md
+  - /srv/projects/aicom/AGENTS.md
+  - /srv/projects/aicom/cgpt/docs/module_boundaries.md
+  - /srv/projects/aicom/cgpt/docs/module_chain.md
+- Required specs/docs read:
+  - /srv/projects/aicom/cgpt/docs/architecture.md
+  - /srv/projects/aicom/cgpt/docs/stage1_acceptance.md
+  - apps/api modules: messages, messages_store, agent_exec, prompt_builder, chats, cabinet_session
+  - apps/web modules: chat, api_client, messages, shared/types
+- Scope in:
+  - Message attachment UI, API upload contract, persisted metadata, download endpoint, agent access in workspace, delete cleanup.
+- Scope out:
+  - External object storage, antivirus, binary parsing/OCR, cross-workspace redesign.
+- Required verification commands:
+  - cd /srv/projects/aicom/cgpt/apps/api && pytest
+  - cd /srv/projects/aicom/cgpt/apps/web && npm run build
+  - cd /srv/projects/aicom/cgpt && git diff --name-only && git diff --stat && git diff --check
+- Required review types:
+  - API contract review, DB/runtime-path review, frontend behavior review, regression review.
+- Definition of Done:
+  - User can send multipart message with up to 10 files.
+  - Files stored server-side in user-scoped folder under workspace and linked to chat/message/user.
+  - Agent prompt includes paths for trigger attachments and user upload root.
+  - Message history exposes attachments and UI renders clickable download links.
+  - Chat deletion removes uploaded files from DB and disk.

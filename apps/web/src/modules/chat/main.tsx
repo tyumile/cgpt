@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { downloadAttachment, listMessages, postMessageWithAttachments } from "@/src/modules/api_client/main";
 import { renderAssistantMarkdown } from "@/src/modules/chat/markdown";
@@ -17,6 +17,46 @@ type ChatScreenProps = {
   onUserMessageFailed?: () => void;
 };
 
+type Copy = {
+  you: string;
+  assistant: string;
+  thinking: string;
+  attach: string;
+  send: string;
+  remove: string;
+  placeholder: string;
+  sendFailed: string;
+};
+
+const COPY_RU: Copy = {
+  you: "Вы",
+  assistant: "Ассистент",
+  thinking: "Ассистент думает...",
+  attach: "Файл",
+  send: "Отправить",
+  remove: "Удалить",
+  placeholder: "Напишите сообщение",
+  sendFailed: "Не удалось отправить сообщение.",
+};
+
+const COPY_EN: Copy = {
+  you: "You",
+  assistant: "Assistant",
+  thinking: "Assistant is thinking...",
+  attach: "Attach",
+  send: "Send",
+  remove: "Remove",
+  placeholder: "Message",
+  sendFailed: "Failed to send message.",
+};
+
+function getUiCopy(): Copy {
+  if (typeof navigator === "undefined") {
+    return COPY_RU;
+  }
+  return navigator.language.toLowerCase().startsWith("ru") ? COPY_RU : COPY_EN;
+}
+
 export default function ChatScreen({
   chatId,
   initialMessages,
@@ -25,10 +65,13 @@ export default function ChatScreen({
   onUserMessageCreated,
   onUserMessageFailed,
 }: ChatScreenProps) {
+  const copy = useMemo(getUiCopy, []);
+
   const [text, setText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [state, setState] = useState(() => buildInitialState(initialMessages));
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) {
@@ -113,6 +156,14 @@ export default function ChatScreen({
     return () => ws.close();
   }, [chatId, sessionToken]);
 
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) {
+      return;
+    }
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [state.messages, state.streamingText, state.isThinking]);
+
   const renderedMessages = useMemo(() => {
     const rows = [...state.messages];
     if (state.streamingText) {
@@ -131,8 +182,7 @@ export default function ChatScreen({
     return rows;
   }, [state.messages, state.streamingText, chatId]);
 
-  const onSubmit = async (event: FormEvent) => {
-    event.preventDefault();
+  const sendMessage = async () => {
     const value = text.trim();
     if (!value) {
       return;
@@ -181,87 +231,100 @@ export default function ChatScreen({
       setState((prev) => ({
         ...prev,
         isThinking: false,
-        error: err instanceof Error ? err.message : "Failed to send message.",
+        error: err instanceof Error ? err.message : copy.sendFailed,
       }));
     }
   };
 
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    await sendMessage();
+  };
+
+  const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void sendMessage();
+    }
+  };
+
   return (
-    <main style={{ margin: 0, padding: 20, width: "100%", boxSizing: "border-box", minWidth: 0 }}>
-      <h1 style={{ marginTop: 0 }}>SaaS Chat MVP</h1>
-      <div style={{ border: "1px solid #ddd", borderRadius: 8, background: "#fff", height: "60vh", overflowY: "auto", padding: 12 }}>
-        {renderedMessages.map((message) => (
-          <div key={message.id} style={{ marginBottom: 12 }}>
-            <strong>{message.role === "user" ? "Вы" : "Ассистент"}:</strong>
-            {message.role === "assistant" ? (
-              renderAssistantMarkdown(message.content)
-            ) : (
-              <div style={{ whiteSpace: "pre-wrap", maxWidth: "72ch" }}>{message.content}</div>
-            )}
-            {message.attachments.length > 0 ? (
-              <ul style={{ marginTop: 8, paddingLeft: 18 }}>
-                {message.attachments.map((attachment) => (
-                  <li key={attachment.id}>
-                    {attachment.download_path ? (
-                      <button
-                        type="button"
-                        onClick={() => void onDownloadAttachment(attachment)}
-                        style={{ border: "none", background: "none", color: "#0a58ca", cursor: "pointer", padding: 0 }}
-                      >
-                        {attachment.original_name}
-                      </button>
-                    ) : (
-                      <span>{attachment.original_name}</span>
-                    )}
-                    <span style={{ color: "#666", marginLeft: 6 }}>({formatFileSize(attachment.size_bytes)})</span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        ))}
-        {state.isThinking && !state.streamingText ? <div>Агент думает...</div> : null}
+    <main className="cg-thread-wrap">
+      <div className="cg-thread-scroll" ref={scrollRef}>
+        <div className="cg-thread-inner">
+          {renderedMessages.map((message) => (
+            <div key={message.id} className={`cg-msg ${message.role === "user" ? "cg-msg--user" : "cg-msg--assistant"}`}>
+              <div className="cg-msg-bubble">
+                <p className="cg-msg-head">{message.role === "user" ? copy.you : copy.assistant}</p>
+                {message.role === "assistant" ? (
+                  renderAssistantMarkdown(message.content)
+                ) : (
+                  <div className="cg-msg-plain">{message.content}</div>
+                )}
+
+                {message.attachments.length > 0 ? (
+                  <ul className="cg-list">
+                    {message.attachments.map((attachment) => (
+                      <li key={attachment.id}>
+                        {attachment.download_path ? (
+                          <button type="button" onClick={() => void onDownloadAttachment(attachment)} className="cg-link-btn">
+                            {attachment.original_name}
+                          </button>
+                        ) : (
+                          <span>{attachment.original_name}</span>
+                        )}
+                        <span className="cg-file-size"> ({formatFileSize(attachment.size_bytes)})</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </div>
+          ))}
+
+          {state.isThinking && !state.streamingText ? <div className="cg-thinking">{copy.thinking}</div> : null}
+          {state.error ? <p className="cg-error">{state.error}</p> : null}
+        </div>
       </div>
 
-      {state.error ? <p style={{ color: "#b00020" }}>{state.error}</p> : null}
+      <div className="cg-composer-wrap">
+        <div className="cg-composer-inner">
+          <input ref={fileInputRef} type="file" multiple onChange={onSelectedFilesChanged} style={{ display: "none" }} />
 
-      <form onSubmit={onSubmit} style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          onChange={onSelectedFilesChanged}
-          style={{ display: "none" }}
-        />
-        <button type="button" onClick={onPickFiles} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #ccc", background: "#fff" }}>
-          Скрепка
-        </button>
-        <input
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          placeholder="Введите сообщение"
-          style={{ flex: 1, padding: 10, borderRadius: 8, border: "1px solid #ccc" }}
-        />
-        <button type="submit" style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: "#111", color: "#fff" }}>
-          Отправить
-        </button>
-      </form>
-      {selectedFiles.length > 0 ? (
-        <ul style={{ marginTop: 8, paddingLeft: 18 }}>
-          {selectedFiles.map((file, idx) => (
-            <li key={`${file.name}-${file.size}-${idx}`}>
-              {file.name} <span style={{ color: "#666" }}>({formatFileSize(file.size)})</span>{" "}
-              <button
-                type="button"
-                onClick={() => onRemoveSelectedFile(idx)}
-                style={{ border: "none", background: "none", color: "#b00020", cursor: "pointer" }}
-              >
-                удалить
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+          {selectedFiles.length > 0 ? (
+            <ul className="cg-file-chips">
+              {selectedFiles.map((file, idx) => (
+                <li key={`${file.name}-${file.size}-${idx}`} className="cg-file-chip">
+                  <span>{file.name}</span>
+                  <span className="cg-file-size">{formatFileSize(file.size)}</span>
+                  <button type="button" onClick={() => onRemoveSelectedFile(idx)} className="cg-link-btn">
+                    {copy.remove}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <form onSubmit={onSubmit} className="cg-form">
+            <button type="button" onClick={onPickFiles} className="cg-btn cg-btn--ghost" aria-label={copy.attach}>
+              +
+            </button>
+
+            <textarea
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              onKeyDown={onComposerKeyDown}
+              placeholder={copy.placeholder}
+              className="cg-textarea"
+              rows={1}
+            />
+
+            <button type="submit" className="cg-btn cg-btn--primary" disabled={!text.trim()}>
+              {copy.send}
+            </button>
+          </form>
+        </div>
+      </div>
     </main>
   );
 }

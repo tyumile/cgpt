@@ -54,41 +54,79 @@ async def publish_event(chat_id: int, event: dict) -> None:
     await redis.publish(settings.run_events_channel, payload)
 
 
+async def _cleanup_pubsub(pubsub, channel: str) -> None:
+    try:
+        await asyncio.shield(pubsub.unsubscribe(channel))
+    except Exception:
+        logger.exception("Realtime pubsub unsubscribe failed")
+    try:
+        await asyncio.shield(pubsub.close())
+    except Exception:
+        logger.exception("Realtime pubsub close failed")
+
+
 async def _subscriber_loop() -> None:
     settings = get_settings()
-    redis = get_redis()
-    pubsub = redis.pubsub()
-    await pubsub.subscribe(settings.run_events_channel)
+    channel = settings.run_events_channel
+    backoff_seconds = 0.5
+    max_backoff_seconds = 10.0
 
-    try:
-        while True:
-            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-            if message is None:
-                await asyncio.sleep(0.05)
-                continue
+    while True:
+        pubsub = None
+        try:
+            redis = get_redis()
+            pubsub = redis.pubsub()
+            await pubsub.subscribe(channel)
+            backoff_seconds = 0.5
 
-            data = message.get("data")
-            if not data:
-                continue
+            while True:
+                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if message is None:
+                    await asyncio.sleep(0.05)
+                    continue
 
-            if isinstance(data, bytes):
-                data = data.decode("utf-8", errors="ignore")
+                data = message.get("data")
+                if not data:
+                    continue
 
-            payload = json.loads(data)
-            await manager.broadcast(payload["chat_id"], payload["event"])
-    except asyncio.CancelledError:
-        raise
-    except Exception:
-        logger.exception("Realtime subscriber loop failed")
-    finally:
-        await pubsub.unsubscribe(settings.run_events_channel)
-        await pubsub.close()
+                if isinstance(data, bytes):
+                    data = data.decode("utf-8", errors="ignore")
+
+                payload = json.loads(data)
+                await manager.broadcast(payload["chat_id"], payload["event"])
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception(
+                "Realtime subscriber loop failed; reconnecting in %.2fs",
+                backoff_seconds,
+            )
+            await asyncio.sleep(backoff_seconds)
+            backoff_seconds = min(backoff_seconds * 2, max_backoff_seconds)
+        finally:
+            if pubsub is not None:
+                await _cleanup_pubsub(pubsub, channel)
 
 
 async def start_realtime_bridge() -> None:
     global _subscriber_task
+    if _subscriber_task is not None and _subscriber_task.done():
+        if _subscriber_task.cancelled():
+            logger.warning("Realtime subscriber task finished via cancellation; restarting")
+        else:
+            exception = _subscriber_task.exception()
+            if exception is None:
+                logger.warning("Realtime subscriber task finished unexpectedly without exception; restarting")
+            else:
+                logger.error(
+                    "Realtime subscriber task failed and will be restarted: %s",
+                    exception,
+                    exc_info=(type(exception), exception, exception.__traceback__),
+                )
+        _subscriber_task = None
+
     if _subscriber_task is None:
-        _subscriber_task = asyncio.create_task(_subscriber_loop())
+        _subscriber_task = asyncio.create_task(_subscriber_loop(), name="realtime-subscriber")
 
 
 async def stop_realtime_bridge() -> None:
@@ -120,6 +158,8 @@ async def chat_ws(
         if chat_exists_result.scalar_one_or_none() is None:
             await websocket.close(code=1008, reason="Chat not found")
             return
+        if session.in_transaction():
+            await session.commit()
 
     await manager.connect(chat_id, websocket)
     try:

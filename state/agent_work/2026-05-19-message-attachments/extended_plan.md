@@ -1,0 +1,21 @@
+# Extended Plan
+- Same bug class search:
+  - ensure all chat ownership checks include workspace/user for download route too.
+- Adjacent surfaces:
+  - chat deletion path (db + filesystem cleanup).
+  - prompt formatting safety when many attachments.
+- Compatibility checks:
+  - old JSON contract intentionally removed per user decision.
+- Persisted state checks:
+  - no orphan file rows/paths after chat delete.
+- Additional protections:
+  - basename sanitization + path traversal guard.
+  - executable extension/mime deny-list.
+- Additional tests:
+  - title tests adapted to new endpoint call.
+  - prompt contains attachment block and user uploads root.
+- Non-goals:
+  - file content extraction/parsing.
+  - external blob storage.
+- Final boundary:
+  - only chat attachment upload/download and agent visibility.

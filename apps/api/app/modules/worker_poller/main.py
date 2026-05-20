@@ -36,6 +36,16 @@ def _payload_to_json(payload: QueuePayload) -> str:
     return json.dumps(asdict(payload), ensure_ascii=False)
 
 
+def _validated_payload(payload: QueuePayload) -> QueuePayload:
+    return QueuePayload(
+        job_id=str(payload.job_id),
+        run_id=int(payload.run_id),
+        workspace_id=int(payload.workspace_id),
+        chat_id=int(payload.chat_id),
+        trigger_message_id=int(payload.trigger_message_id),
+    )
+
+
 async def _ack_processing_message(raw_payload: str, *, redis=None) -> None:
     settings = get_settings()
     redis = redis or get_redis()
@@ -48,6 +58,29 @@ async def _requeue_payload(payload: QueuePayload, *, redis=None) -> None:
     await redis.lpush(settings.run_queue_name, _payload_to_json(payload))
 
 
+async def _deadletter_malformed_payload(raw_payload: str, *, session_factory=AsyncSessionLocal) -> None:
+    try:
+        parsed = json.loads(raw_payload)
+    except (TypeError, json.JSONDecodeError):
+        return
+
+    if not isinstance(parsed, dict):
+        return
+
+    run_id = parsed.get("run_id")
+    try:
+        run_id = int(run_id)
+    except (TypeError, ValueError):
+        return
+
+    async with session_factory() as session:
+        result = await session.execute(select(AgentRun).where(AgentRun.id == run_id))
+        run = result.scalar_one_or_none()
+        if run is None:
+            return
+        await mark_deadletter(session, run=run, reason="malformed-queue-payload")
+
+
 async def _recover_processing_queue_once(*, redis=None, session_factory=AsyncSessionLocal) -> None:
     settings = get_settings()
     redis = redis or get_redis()
@@ -58,7 +91,16 @@ async def _recover_processing_queue_once(*, redis=None, session_factory=AsyncSes
         if raw_payload in handled:
             continue
         handled.add(raw_payload)
-        payload = QueuePayload.from_json(raw_payload)
+        try:
+            payload = _validated_payload(QueuePayload.from_json(raw_payload))
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            logger.warning("Skipping malformed processing payload during recovery: %s", exc)
+            try:
+                await _deadletter_malformed_payload(raw_payload, session_factory=session_factory)
+            except Exception:
+                logger.exception("Failed to mark malformed processing payload as deadletter")
+            await _ack_processing_message(raw_payload, redis=redis)
+            continue
 
         async with session_factory() as session:
             result = await session.execute(select(AgentRun).where(AgentRun.id == payload.run_id))
@@ -127,7 +169,19 @@ async def worker_loop() -> None:
             await asyncio.sleep(0.1)
             continue
 
-        payload = QueuePayload.from_json(raw_payload)
+        try:
+            payload = _validated_payload(QueuePayload.from_json(raw_payload))
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            logger.warning("Skipping malformed queue payload: %s", exc)
+            try:
+                await _deadletter_malformed_payload(raw_payload)
+            except Exception:
+                logger.exception("Failed to mark malformed payload as deadletter")
+            try:
+                await _ack_processing_message(raw_payload)
+            except Exception:
+                logger.exception("Failed to ack malformed queue payload")
+            continue
 
         async with AsyncSessionLocal() as session:
             run = await claim_run_for_processing(

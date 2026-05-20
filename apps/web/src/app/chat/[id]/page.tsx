@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import ChatScreen from "@/src/modules/chat/main";
@@ -10,8 +10,58 @@ import { loadInitialMessages, normalizeChatParam, resolveChat } from "@/src/modu
 import ChatHistorySidebar from "@/src/modules/chat_history/main";
 import { CabinetSession, Message } from "@/src/shared/types";
 
+type Copy = {
+  loading: string;
+  authTitle: string;
+  authSubtitle: string;
+  email: string;
+  fullName: string;
+  authButton: string;
+  authButtonLoading: string;
+  invalidEmail: string;
+  invalidName: string;
+  emptyChatHint: string;
+  genericLoadError: string;
+};
+
+const COPY_RU: Copy = {
+  loading: "Загрузка...",
+  authTitle: "Доступ к кабинету",
+  authSubtitle: "Введите данные аккаунта, чтобы начать диалог.",
+  email: "Email",
+  fullName: "Полное имя",
+  authButton: "Продолжить",
+  authButtonLoading: "Авторизация...",
+  invalidEmail: "Введите корректный email.",
+  invalidName: "Введите полное имя.",
+  emptyChatHint: "Чат не выбран. Выберите существующий чат или создайте новый.",
+  genericLoadError: "Не удалось загрузить чат",
+};
+
+const COPY_EN: Copy = {
+  loading: "Loading...",
+  authTitle: "Cabinet access",
+  authSubtitle: "Enter account details to start chatting.",
+  email: "Email",
+  fullName: "Full name",
+  authButton: "Continue",
+  authButtonLoading: "Authorizing...",
+  invalidEmail: "Enter a valid email address.",
+  invalidName: "Enter full name.",
+  emptyChatHint: "No chat selected. Choose an existing chat or create a new one.",
+  genericLoadError: "Failed to load chat",
+};
+
+function getUiCopy(): Copy {
+  if (typeof navigator === "undefined") {
+    return COPY_RU;
+  }
+  return navigator.language.toLowerCase().startsWith("ru") ? COPY_RU : COPY_EN;
+}
+
 export default function ChatPage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const copy = useMemo(getUiCopy, []);
 
   const [session, setSession] = useState<CabinetSession | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -89,7 +139,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         if (!active) {
           return;
         }
-        const message = err instanceof Error ? err.message : "Failed to load chat";
+        const message = err instanceof Error ? err.message : copy.genericLoadError;
         if (message.includes("cabinet session") || message.includes("401")) {
           clearCabinetSession();
           setSession(null);
@@ -107,7 +157,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     return () => {
       active = false;
     };
-  }, [params.id, router, session?.token]);
+  }, [copy.genericLoadError, params.id, router, session?.token]);
 
   const onAuthSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -115,12 +165,12 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     const trimmedName = fullName.trim();
 
     if (!/^\S+@\S+\.\S+$/.test(trimmedEmail)) {
-      setAuthError("Enter a valid email address.");
+      setAuthError(copy.invalidEmail);
       return;
     }
 
     if (trimmedName.length < 2) {
-      setAuthError("Enter full name.");
+      setAuthError(copy.invalidName);
       return;
     }
 
@@ -156,58 +206,30 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   };
 
   if (!sessionChecked) {
-    return <main style={{ margin: "0 auto", padding: 20 }}>Loading...</main>;
+    return <main className="cg-center-state">{copy.loading}</main>;
   }
 
   if (!session) {
     return (
-      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 20, background: "#f2f2f3" }}>
-        <form
-          onSubmit={onAuthSubmit}
-          style={{
-            width: "100%",
-            maxWidth: 420,
-            background: "#fff",
-            border: "1px solid #e2e2e2",
-            borderRadius: 12,
-            padding: 20,
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-          }}
-        >
-          <h1 style={{ margin: 0 }}>Cabinet access</h1>
-          <p style={{ margin: 0, color: "#555" }}>Enter account details to start chatting.</p>
+      <main className="cg-auth-wrap">
+        <form onSubmit={onAuthSubmit} className="cg-auth-card">
+          <h1 className="cg-auth-title">{copy.authTitle}</h1>
+          <p className="cg-auth-subtitle">{copy.authSubtitle}</p>
 
-          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span>Email</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-              style={{ padding: 10, borderRadius: 8, border: "1px solid #ccc" }}
-            />
+          <label className="cg-field">
+            <span>{copy.email}</span>
+            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required className="cg-input" />
           </label>
 
-          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span>Full name</span>
-            <input
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-              required
-              style={{ padding: 10, borderRadius: 8, border: "1px solid #ccc" }}
-            />
+          <label className="cg-field">
+            <span>{copy.fullName}</span>
+            <input value={fullName} onChange={(event) => setFullName(event.target.value)} required className="cg-input" />
           </label>
 
-          {authError ? <p style={{ margin: 0, color: "#b00020" }}>{authError}</p> : null}
+          {authError ? <p className="cg-error">{authError}</p> : null}
 
-          <button
-            type="submit"
-            disabled={authLoading}
-            style={{ padding: "10px 14px", borderRadius: 8, border: "none", background: "#111", color: "#fff", opacity: authLoading ? 0.7 : 1 }}
-          >
-            {authLoading ? "Authorizing..." : "Continue"}
+          <button type="submit" disabled={authLoading} className="cg-btn cg-btn--primary">
+            {authLoading ? copy.authButtonLoading : copy.authButton}
           </button>
         </form>
       </main>
@@ -215,7 +237,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#fff" }}>
+    <div className="cg-shell">
       <ChatHistorySidebar
         activeChatId={chatId}
         sessionToken={session.token}
@@ -226,18 +248,18 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         onDelete={onDeleteChat}
       />
 
-      <section style={{ flex: 1, minWidth: 0, padding: "0 2%", boxSizing: "border-box" }}>
-        {loading ? <main style={{ margin: "0 auto", padding: 20 }}>Загрузка...</main> : null}
+      <section className="cg-main">
+        {loading ? <main className="cg-center-state">{copy.loading}</main> : null}
 
         {!loading && error ? (
-          <main style={{ margin: "0 auto", padding: 20 }}>
-            <p style={{ color: "#b00020" }}>{error}</p>
+          <main className="cg-center-state cg-center-state--error">
+            <p>{error}</p>
           </main>
         ) : null}
 
         {!loading && !error && chatId === null ? (
-          <main style={{ margin: "0 auto", padding: 20 }}>
-            <p style={{ margin: 0, color: "#444" }}>Чат не выбран. Выберите существующий чат или создайте новый.</p>
+          <main className="cg-center-state">
+            <p>{copy.emptyChatHint}</p>
           </main>
         ) : null}
 

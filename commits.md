@@ -51,3 +51,8 @@
 2026-05-19 | 11:55 UTC | CGPT project logo generation | Generated logo asset and saved it under apps/web/public/brand/cgpt-logo.png.
 2026-05-19 | 11:59 UTC | External CGPT logo download link | Published logo copy at https://aiaicom.ru/cgpt-logo.png and verified HTTP 200 image/png.
 2026-05-19 | 12:00 UTC | Fix bwrap namespace failures for agent file processing | Added configurable CODEX_SANDBOX_MODE and set prod api/worker to danger-full-access; verified attachment read run returns expected text.
+2026-05-19 | 12:14 UTC | Updated AGENTS with GitHub SSH push rule | Added mandatory SSH push/auth checks and SSH key location guidance.
+2026-05-19 | 12:17 UTC | Expanded AGENTS operational rules | Added post-deploy checks, required restarts, attachment smoke tests, 4xx validation rule, and known production failure mode playbook.
+2026-05-20 | 10:45 UTC | Chat UI redesign to ChatGPT-like light interface | Refactored web chat UI (shell/sidebar/thread/composer), added design tokens and RU/EN labels; build PASS, lint not runnable non-interactively due missing Next ESLint config prompt.
+2026-05-20 | 10:48 UTC | Fixed /gpt Loading chunk mismatch on production | Restarted cgpt-web.service; /gpt/chat/new=200 and all referenced /gpt/_next/static/chunks/*.js return 200.
+2026-05-20 | 11:08 UTC | Git commit and push requested workspace changes | Committed and pushed local tracked feature updates to origin/main via SSH.

@@ -15,6 +15,52 @@ type ChatHistorySidebarProps = {
   onDelete: (chatId: number) => Promise<void>;
 };
 
+type Copy = {
+  openChats: string;
+  close: string;
+  newChat: string;
+  loadingChats: string;
+  noChats: string;
+  deleteConfirm: string;
+  deleteFailed: string;
+  deleting: string;
+  delete: string;
+  noMessagesYet: string;
+};
+
+const COPY_RU: Copy = {
+  openChats: "Чаты",
+  close: "Закрыть",
+  newChat: "Новый чат",
+  loadingChats: "Загрузка чатов...",
+  noChats: "Пока нет чатов",
+  deleteConfirm: "Удалить этот чат? Это действие нельзя отменить.",
+  deleteFailed: "Не удалось удалить чат.",
+  deleting: "Удаление...",
+  delete: "Удалить",
+  noMessagesYet: "Пока без сообщений",
+};
+
+const COPY_EN: Copy = {
+  openChats: "Chats",
+  close: "Close",
+  newChat: "New chat",
+  loadingChats: "Loading chats...",
+  noChats: "No chats yet",
+  deleteConfirm: "Delete this chat? This action cannot be undone.",
+  deleteFailed: "Failed to delete chat.",
+  deleting: "Deleting...",
+  delete: "Delete",
+  noMessagesYet: "No messages yet",
+};
+
+function getUiCopy(): Copy {
+  if (typeof navigator === "undefined") {
+    return COPY_RU;
+  }
+  return navigator.language.toLowerCase().startsWith("ru") ? COPY_RU : COPY_EN;
+}
+
 function toPreviewText(value: string): string {
   const singleLine = value.replace(/\s+/g, " ").trim();
   if (singleLine.length <= 72) {
@@ -32,6 +78,8 @@ export default function ChatHistorySidebar({
   onSelectChat,
   onDelete,
 }: ChatHistorySidebarProps) {
+  const copy = useMemo(getUiCopy, []);
+
   const [items, setItems] = useState<ChatHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,16 +144,16 @@ export default function ChatHistorySidebar({
 
   const emptyState = useMemo(() => {
     if (isLoading) {
-      return "Loading chats...";
+      return copy.loadingChats;
     }
     if (error) {
       return error;
     }
     if (items.length === 0) {
-      return "No chats yet";
+      return copy.noChats;
     }
     return null;
-  }, [error, isLoading, items.length]);
+  }, [copy.loadingChats, copy.noChats, error, isLoading, items.length]);
 
   const handleSelectChat = (chatId: number) => {
     onSelectChat(chatId);
@@ -122,7 +170,7 @@ export default function ChatHistorySidebar({
       return;
     }
 
-    const confirmed = window.confirm("Удалить этот чат? Это действие нельзя отменить.");
+    const confirmed = window.confirm(copy.deleteConfirm);
     if (!confirmed) {
       return;
     }
@@ -133,121 +181,50 @@ export default function ChatHistorySidebar({
       await onDelete(chatId);
       setItems((prev) => prev.filter((item) => item.chat.id !== chatId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось удалить чат.");
+      setError(err instanceof Error ? err.message : copy.deleteFailed);
     } finally {
       setDeletingChatId(null);
     }
   };
 
   return (
-    <div
-      style={{
-        position: "relative",
-        flexShrink: isMobile ? 1 : 0,
-        width: isMobile ? 0 : "clamp(260px, 22vw, 320px)",
-      }}
-    >
+    <div className="cg-sidebar-host">
       {isMobile && !isSidebarOpen ? (
         <button
           type="button"
           onClick={() => setIsSidebarOpen(true)}
-          aria-label="Открыть список чатов"
-          style={{
-            position: "fixed",
-            top: 12,
-            left: 12,
-            padding: "10px 12px",
-            borderRadius: 8,
-            border: "1px solid #d0d0d0",
-            background: "#fff",
-            fontWeight: 600,
-            cursor: "pointer",
-            zIndex: 1002,
-          }}
+          aria-label={copy.openChats}
+          className="cg-btn cg-btn--ghost cg-mobile-sidebar-toggle"
         >
-          Чаты
+          {copy.openChats}
         </button>
       ) : null}
 
       {isMobile && isSidebarOpen ? (
         <button
           type="button"
-          aria-label="Закрыть список чатов"
+          aria-label={copy.close}
           onClick={() => setIsSidebarOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.35)",
-            border: "none",
-            padding: 0,
-            margin: 0,
-            cursor: "pointer",
-            zIndex: 1000,
-          }}
+          className="cg-sidebar-backdrop"
         />
       ) : null}
 
-      <aside
-        style={{
-          position: isMobile ? "fixed" : "relative",
-          top: isMobile ? 0 : undefined,
-          left: isMobile ? 0 : undefined,
-          bottom: isMobile ? 0 : undefined,
-          width: isMobile ? "min(320px, calc(100vw - 16px))" : "100%",
-          boxSizing: "border-box",
-          minWidth: isMobile ? undefined : 260,
-          maxWidth: "100vw",
-          borderRight: "1px solid #e5e5e5",
-          background: "#f7f7f8",
-          padding: 12,
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          overflowY: "auto",
-          transform: isMobile ? (isSidebarOpen ? "translateX(0)" : "translateX(-100%)") : "none",
-          transition: "transform 180ms ease",
-          pointerEvents: isMobile && !isSidebarOpen ? "none" : "auto",
-          zIndex: isMobile ? 1001 : "auto",
-        }}
-      >
+      <aside className={`cg-sidebar${isMobile ? (isSidebarOpen ? " cg-sidebar--open" : "") : ""}`}>
         {isMobile ? (
-          <button
-            type="button"
-            onClick={() => setIsSidebarOpen(false)}
-            style={{
-              alignSelf: "flex-end",
-              border: "1px solid #d0d0d0",
-              background: "#fff",
-              borderRadius: 8,
-              padding: "6px 10px",
-              cursor: "pointer",
-              fontWeight: 600,
-            }}
-          >
-            Закрыть
+          <button type="button" onClick={() => setIsSidebarOpen(false)} className="cg-btn cg-btn--ghost">
+            {copy.close}
           </button>
         ) : null}
 
-        <button
-          type="button"
-          onClick={onCreateChat}
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 8,
-            border: "1px solid #d0d0d0",
-            background: "#fff",
-            fontWeight: 600,
-            cursor: "pointer",
-            textAlign: "left",
-          }}
-        >
-          + New chat
+        <button type="button" onClick={onCreateChat} className="cg-btn cg-btn--ghost">
+          + {copy.newChat}
         </button>
 
-        {emptyState ? <p style={{ margin: 0, color: error ? "#b00020" : "#444" }}>{emptyState}</p> : null}
+        <p className="cg-sidebar-title">History</p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {emptyState ? <p className={error ? "cg-error" : "cg-center-state"}>{emptyState}</p> : null}
+
+        <div className="cg-chat-list">
           {items.map((item) => {
             const isActive = item.chat.id === activeChatId;
             const previewText =
@@ -257,68 +234,20 @@ export default function ChatHistorySidebar({
             const isDeletingCurrent = deletingChatId === item.chat.id;
             const isDeletingAny = deletingChatId !== null;
             return (
-              <div
-                key={item.chat.id}
-                style={{
-                  display: "flex",
-                  alignItems: "stretch",
-                  gap: 8,
-                  padding: 8,
-                  borderRadius: 10,
-                  border: isActive ? "1px solid #111" : "1px solid transparent",
-                  background: isActive ? "#fff" : "#ececef",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => handleSelectChat(item.chat.id)}
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    textAlign: "left",
-                    padding: "2px 4px",
-                    border: "none",
-                    background: "transparent",
-                    cursor: "pointer",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "#111",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {item.chat.title || `Chat ${item.chat.id}`}
-                  </div>
-                  <div style={{ fontSize: 12, marginTop: 4, color: "#666", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {previewText ?? "No messages yet"}
-                  </div>
+              <div key={item.chat.id} className={`cg-chat-row${isActive ? " cg-chat-row--active" : ""}`}>
+                <button type="button" onClick={() => handleSelectChat(item.chat.id)} className="cg-chat-open">
+                  <div className="cg-chat-name">{item.chat.title || `Chat ${item.chat.id}`}</div>
+                  <div className="cg-chat-preview">{previewText ?? copy.noMessagesYet}</div>
                 </button>
 
                 <button
                   type="button"
                   onClick={(event) => void handleDeleteChat(event, item.chat.id)}
                   disabled={isDeletingAny}
-                  aria-label={`Удалить чат ${item.chat.title || item.chat.id}`}
-                  style={{
-                    alignSelf: "center",
-                    border: "1px solid #d0d0d0",
-                    background: "#fff",
-                    borderRadius: 8,
-                    padding: "6px 8px",
-                    cursor: isDeletingAny ? "not-allowed" : "pointer",
-                    opacity: isDeletingAny ? 0.7 : 1,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: "#7b0000",
-                    minWidth: 72,
-                  }}
+                  aria-label={`${copy.delete} ${item.chat.title || item.chat.id}`}
+                  className="cg-btn cg-btn--danger"
                 >
-                  {isDeletingCurrent ? "Удаление..." : "Удалить"}
+                  {isDeletingCurrent ? copy.deleting : copy.delete}
                 </button>
               </div>
             );

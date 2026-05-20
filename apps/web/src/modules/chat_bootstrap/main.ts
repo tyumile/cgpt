@@ -12,7 +12,7 @@ export async function resolveChat(chatParam: string, sessionToken?: string): Pro
 
   const chatId = Number(chatParam);
   if (!Number.isFinite(chatId)) {
-    return createChat("Новый чат", sessionToken);
+    return null;
   }
 
   return getChat(chatId, sessionToken);
